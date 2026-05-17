@@ -74,7 +74,38 @@ jobs:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           RUSTFLAGS: -Lnative=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/14.0.7/lib/linux/aarch64 -C link-arg=-lc++abi
         run: |
-          cargo quad-apk build --release --target aarch64-linux-android
+          set -o pipefail
+          mkdir -p target/ci-logs
+          cargo quad-apk build --release --target aarch64-linux-android 2>&1 | tee target/ci-logs/android-build.log
+
+      - name: Show build failure details
+        if: failure()
+        run: |
+          LOG=target/ci-logs/android-build.log
+          SUMMARY=target/ci-logs/android-build-summary.log
+          if [ ! -f "$LOG" ]; then
+            echo "Build log was not created." | tee "$SUMMARY"
+          else
+            grep -Ei "error:|failed|failure|Caused by|undefined reference|cannot find|not found|No such file|panicked|exception|could not compile|could not execute|linking with" "$LOG" \
+              | tail -n 80 > "$SUMMARY" || true
+            if [ ! -s "$SUMMARY" ]; then
+              tail -n 120 "$LOG" > "$SUMMARY"
+            fi
+          fi
+
+          echo "## Android APK build failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Key lines:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          while IFS= read -r line; do
+            safe=${line//'%'/'%25'}
+            safe=${safe//$'\r'/'%0D'}
+            safe=${safe//$'\n'/'%0A'}
+            echo "::error title=Android APK build::$safe"
+          done < "$SUMMARY"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
