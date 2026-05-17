@@ -858,12 +858,16 @@ fn create_preview_sink(
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    boot_screen("BOOT 01: Rust main entered", None).await;
     log_file::init();
+    boot_screen("BOOT 02: log initialized", None).await;
     let boot_t0 = Instant::now();
     log_file::write("app start");
     set_workdir_to_project_root();
+    boot_screen("BOOT 03: workdir ready", None).await;
     let app_root = app_storage_root();
     let _ = fs::create_dir_all(&app_root);
+    boot_screen(&format!("BOOT 04: storage {}", app_root.display()), None).await;
     log_file::write(format!("app_root={}", app_root.display()));
     log_file::write(format!(
         "log_paths={}",
@@ -874,7 +878,9 @@ async fn main() {
             .join(" | ")
     ));
     let ui_font = load_ui_font().await;
+    boot_screen("BOOT 05: font loaded", ui_font.as_ref()).await;
     let song_folder_path = data_file_path(&app_root, SONG_FOLDER_FILE);
+    boot_screen("BOOT 06: choose folder", ui_font.as_ref()).await;
     let songs_roots = if let Some(folder) =
         choose_song_folder_first_run(&song_folder_path, ui_font.as_ref()).await
     {
@@ -886,6 +892,7 @@ async fn main() {
     };
     log_file::write(format!("song_roots={}", songs_roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(" | ")));
     println!("[boot] set_workdir: {} ms", boot_t0.elapsed().as_millis());
+    boot_screen("BOOT 07: scanning songs", ui_font.as_ref()).await;
 
     let t_find = Instant::now();
     let entries = discover_song_entries_multi(&songs_roots);
@@ -895,6 +902,7 @@ async fn main() {
         entries.len()
     ));
     println!("[boot] scan songs: {} ms | count={}", t_find.elapsed().as_millis(), entries.len());
+    boot_screen(&format!("BOOT 08: found {} charts", entries.len()), ui_font.as_ref()).await;
     if entries.is_empty() {
         log_file::write("no songs found, showing diagnostics screen");
         no_songs_screen(&songs_roots, ui_font.as_ref()).await;
@@ -1002,6 +1010,20 @@ async fn main() {
             }
         }
     }
+}
+
+async fn boot_screen(status: &str, ui_font: Option<&Font>) {
+    clear_background(Color::from_rgba(12, 14, 26, 255));
+    draw_text_ui(
+        ui_font,
+        "StepMania R",
+        36.0,
+        72.0,
+        52.0,
+        Color::from_rgba(245, 90, 90, 255),
+    );
+    draw_text_ui(ui_font, status, 36.0, 122.0, 28.0, WHITE);
+    next_frame().await;
 }
 
 fn draw_text_ui(font: Option<&Font>, text: &str, x: f32, y: f32, size: f32, color: Color) {
