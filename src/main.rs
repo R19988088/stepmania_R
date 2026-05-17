@@ -21,6 +21,10 @@ const UI_FONT_CANDIDATES: [&str; 2] = [
 const PREVIEW_BASE_VOLUME: f32 = 0.72;
 const PREVIEW_DEBOUNCE_SEC: f64 = 0.08;
 const PREVIEW_FADE_SEC: f64 = 0.20;
+#[cfg(target_os = "android")]
+const ENABLE_SONG_SELECT_PREVIEW_AUDIO: bool = false;
+#[cfg(not(target_os = "android"))]
+const ENABLE_SONG_SELECT_PREVIEW_AUDIO: bool = true;
 const LAST_SELECTION_FILE: &str = "last_selection.txt";
 const LAST_DIFFICULTY_FILE: &str = "last_difficulty.txt";
 const SONG_FOLDER_FILE: &str = "song_folder.txt";
@@ -673,7 +677,7 @@ async fn song_select(
             }
         }
 
-        if preview_idx.is_some() && preview_sink.is_none() {
+        if ENABLE_SONG_SELECT_PREVIEW_AUDIO && preview_idx.is_some() && preview_sink.is_none() {
             if preview_handle.is_none() {
                 if let Ok((stream, handle)) = OutputStream::try_default() {
                     _preview_stream_keepalive = Some(stream);
