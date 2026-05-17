@@ -1,5 +1,5 @@
 [package]
-name = "mini_stepmania_rust"
+name = "ministepmania"
 version = "0.1.0"
 edition = "2021"
 

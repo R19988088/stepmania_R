@@ -637,18 +637,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "mini_stepmania_rust"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "image",
- "lewton",
- "macroquad",
- "rodio",
- "symphonia",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,6 +652,18 @@ dependencies = [
  "ndk-sys 0.2.2",
  "objc-rs",
  "winapi",
+]
+
+[[package]]
+name = "ministepmania"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "image",
+ "lewton",
+ "macroquad",
+ "rodio",
+ "symphonia",
 ]
 
 [[package]]
