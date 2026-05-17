@@ -1,0 +1,16 @@
+target/
+android-artifacts/
+
+*.apk
+*.aab
+*.keystore
+*.jks
+*.exe
+
+last_selection.txt
+last_difficulty.txt
+last_game_speed.txt
+
+.idea/
+.vscode/
+*.log

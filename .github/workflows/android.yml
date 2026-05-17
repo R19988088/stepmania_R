@@ -1,0 +1,83 @@
+name: android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Java (CI only)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Setup Android SDK + NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+          add-to-path: true
+
+      - name: Install Android packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3"
+
+      - name: Install cargo-quad-apk
+        run: cargo install cargo-quad-apk --locked
+
+      - name: Add NDK tool aliases for cargo-quad-apk compatibility
+        run: |
+          set -euxo pipefail
+          CANDIDATES=(
+            "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+            "/opt/hostedtoolcache/ndk/r25c/x64/toolchains/llvm/prebuilt/linux-x86_64/bin"
+            "/usr/local/lib/android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          )
+          for NDK_BIN in "${CANDIDATES[@]}"; do
+            if [ -d "$NDK_BIN" ]; then
+              cp -f "$NDK_BIN/llvm-ar" "$NDK_BIN/aarch64-linux-android-ar" || true
+              cp -f "$NDK_BIN/ld.lld" "$NDK_BIN/aarch64-linux-android-ld" || true
+              cp -f "$NDK_BIN/llvm-readelf" "$NDK_BIN/aarch64-linux-android-readelf" || true
+              cp -f "$NDK_BIN/llvm-objcopy" "$NDK_BIN/aarch64-linux-android-objcopy" || true
+              cp -f "$NDK_BIN/llvm-strip" "$NDK_BIN/aarch64-linux-android-strip" || true
+              cp -f "$NDK_BIN/llvm-ranlib" "$NDK_BIN/aarch64-linux-android-ranlib" || true
+              cp -f "$NDK_BIN/llvm-nm" "$NDK_BIN/aarch64-linux-android-nm" || true
+              cp -f "$NDK_BIN/llvm-objdump" "$NDK_BIN/aarch64-linux-android-objdump" || true
+              chmod +x "$NDK_BIN"/aarch64-linux-android-* || true
+              ls -l "$NDK_BIN/aarch64-linux-android-readelf" || true
+            fi
+          done
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          RUSTFLAGS: -Lnative=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/14.0.7/lib/linux/aarch64 -C link-arg=-lc++abi
+        run: |
+          cargo quad-apk build --release --target aarch64-linux-android
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: target/android-artifacts/release/apk/*.apk
