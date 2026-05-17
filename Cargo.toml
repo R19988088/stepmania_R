@@ -19,7 +19,7 @@ opt-level = 2
 
 [package.metadata.android]
 android_version = 30
-target_sdk_version = 30
+target_sdk_version = 28
 min_sdk_version = 26
 build_targets = ["aarch64-linux-android"]
 package_name = "com.stepmania.ministepmania"

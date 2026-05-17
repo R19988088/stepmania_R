@@ -40,5 +40,5 @@ android-apk
 
 - GPU-first rendering.
 - Android first target: `arm64-v8a`.
-- Android compile/target SDK: 30.
+- Android compile SDK: 30. Target SDK: 28.
 - Desktop-class minimum GPU direction: GTX 1080.

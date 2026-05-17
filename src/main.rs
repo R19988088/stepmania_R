@@ -818,9 +818,14 @@ async fn main() {
     let app_root = app_storage_root();
     let _ = fs::create_dir_all(&app_root);
     log_file::write(format!("app_root={}", app_root.display()));
-    if let Some(path) = log_file::path() {
-        log_file::write(format!("log_path={}", path.display()));
-    }
+    log_file::write(format!(
+        "log_paths={}",
+        log_file::paths()
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    ));
     let ui_font = load_ui_font().await;
     let song_folder_path = data_file_path(&app_root, SONG_FOLDER_FILE);
     let songs_roots = if let Some(folder) =

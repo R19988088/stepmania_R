@@ -1,54 +1,60 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
+const LOG_NAME: &str = "stepmania_r.log";
 
 pub fn init() {
-    let path = log_path();
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
+    for path in log_paths() {
+        prepare_log_file(&path, true);
     }
-    let _ = fs::write(&path, "");
     write("log initialized");
     install_panic_hook();
 }
 
-pub fn path() -> Option<&'static PathBuf> {
-    LOG_PATH.get()
+pub fn paths() -> Vec<PathBuf> {
+    log_paths()
 }
 
 pub fn write(message: impl AsRef<str>) {
-    let path = log_path();
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-        let _ = writeln!(file, "[{}] {}", timestamp_ms(), message.as_ref());
+    let line = format!("[{}] {}", timestamp_ms(), message.as_ref());
+    for path in log_paths() {
+        prepare_log_file(&path, false);
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(file, "{line}");
+        }
     }
 }
 
-fn log_path() -> &'static PathBuf {
-    LOG_PATH.get_or_init(|| {
-        #[cfg(target_os = "android")]
-        {
-            let public = PathBuf::from("/storage/emulated/0/stepmania/stepmania_r.log");
-            if fs::create_dir_all(public.parent().unwrap()).is_ok() {
-                return public;
-            }
-            let sdcard = PathBuf::from("/sdcard/stepmania/stepmania_r.log");
-            if fs::create_dir_all(sdcard.parent().unwrap()).is_ok() {
-                return sdcard;
-            }
-            PathBuf::from("stepmania_r.log")
-        }
-        #[cfg(not(target_os = "android"))]
-        {
-            PathBuf::from("stepmania_r.log")
-        }
-    })
+fn log_paths() -> Vec<PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        vec![
+            PathBuf::from("/sdcard").join(LOG_NAME),
+            PathBuf::from("/sdcard/Download").join(LOG_NAME),
+            PathBuf::from("/sdcard/Documents").join(LOG_NAME),
+            PathBuf::from("/sdcard/stepmania").join(LOG_NAME),
+            PathBuf::from("/storage/emulated/0").join(LOG_NAME),
+            PathBuf::from("/storage/emulated/0/Download").join(LOG_NAME),
+            PathBuf::from("/storage/emulated/0/Documents").join(LOG_NAME),
+            PathBuf::from("/storage/emulated/0/stepmania").join(LOG_NAME),
+            PathBuf::from(LOG_NAME),
+        ]
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        vec![PathBuf::from(LOG_NAME)]
+    }
+}
+
+fn prepare_log_file(path: &Path, truncate: bool) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if truncate {
+        let _ = fs::write(path, "");
+    }
 }
 
 fn timestamp_ms() -> u128 {
