@@ -1,6 +1,7 @@
 mod chart;
 mod dwi_parser;
 mod game;
+mod log_file;
 mod sm_parser;
 mod song_select_services;
 
@@ -364,6 +365,7 @@ fn discover_song_entries(root: &Path) -> Vec<SongEntry> {
                 sm_parser::parse_sm(&chart_path, None)
             };
             let Ok(chart) = chart_res else {
+                log_file::write(format!("[scan] skip parse failed: {}", chart_path.display()));
                 println!("[scan] skip parse failed: {}", chart_path.display());
                 continue;
             };
@@ -809,25 +811,40 @@ fn create_preview_sink(
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    log_file::init();
     let boot_t0 = Instant::now();
+    log_file::write("app start");
     set_workdir_to_project_root();
     let app_root = app_storage_root();
     let _ = fs::create_dir_all(&app_root);
+    log_file::write(format!("app_root={}", app_root.display()));
+    if let Some(path) = log_file::path() {
+        log_file::write(format!("log_path={}", path.display()));
+    }
     let ui_font = load_ui_font().await;
     let song_folder_path = data_file_path(&app_root, SONG_FOLDER_FILE);
     let songs_roots = if let Some(folder) =
         choose_song_folder_first_run(&song_folder_path, ui_font.as_ref()).await
     {
+        log_file::write(format!("song_folder_selected={}", folder.display()));
         vec![folder]
     } else {
+        log_file::write("song_folder_not_selected_using_candidates");
         songs_dir_candidates(&app_root)
     };
+    log_file::write(format!("song_roots={}", songs_roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(" | ")));
     println!("[boot] set_workdir: {} ms", boot_t0.elapsed().as_millis());
 
     let t_find = Instant::now();
     let entries = discover_song_entries_multi(&songs_roots);
+    log_file::write(format!(
+        "scan songs done: {} ms | count={}",
+        t_find.elapsed().as_millis(),
+        entries.len()
+    ));
     println!("[boot] scan songs: {} ms | count={}", t_find.elapsed().as_millis(), entries.len());
     if entries.is_empty() {
+        log_file::write("no songs found, exiting");
         return;
     }
     let last_selection_path = data_file_path(&app_root, LAST_SELECTION_FILE);
@@ -881,10 +898,17 @@ async fn main() {
         } {
             Ok(c) => c,
             Err(e) => {
+                log_file::write(format!("parse failed {}: {e}", chart_path.display()));
                 println!("Parse failed {}: {e}", chart_path.display());
                 continue;
             }
         };
+        log_file::write(format!(
+            "parse selected done: {} ms | path={} | difficulty={}",
+            t_parse.elapsed().as_millis(),
+            chart_path.display(),
+            diff
+        ));
         println!("[boot] parse selected: {} ms", t_parse.elapsed().as_millis());
         println!(
             "[chart] timing: offset={:.3} bpms={} stops={} notes={}",
@@ -913,6 +937,7 @@ async fn main() {
         'play_loop: loop {
             let t_game = Instant::now();
             let mut game = Game::new(chart.clone(), 1.0).await;
+            log_file::write(format!("game new done: {} ms", t_game.elapsed().as_millis()));
             println!("[boot] game new await: {} ms", t_game.elapsed().as_millis());
             match game.run().await {
                 GameExitAction::BackToSongSelect => {

@@ -18,6 +18,7 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
 use crate::chart::{Chart, NoteKind, beat_to_seconds, seconds_to_beat};
+use crate::log_file;
 
 const LOGICAL_W: f32 = 1280.0;
 const LOGICAL_H: f32 = 2560.0;
@@ -268,9 +269,11 @@ impl Game {
 
     pub async fn new(chart: Chart, audio_speed: f32) -> Self {
         let t0 = Instant::now();
+        log_file::write(format!("Game::new start title={} notes={}", chart.title, chart.notes.len()));
         let jacket_tex = load_jacket_texture(chart.music.as_deref()).await;
         let (jacket_blur_rt, jacket_blur_tex) = build_jacket_blur_gpu(jacket_tex.as_ref());
         println!("[boot] jacket load: {} ms", t0.elapsed().as_millis());
+        log_file::write(format!("[boot] jacket load: {} ms", t0.elapsed().as_millis()));
         let t1 = Instant::now();
         let arrow_tex = load_arrow_texture().await;
         let dir_arrow_tex = load_direction_arrow_textures().await;
@@ -282,9 +285,11 @@ impl Game {
         let hit_explosion_tex = load_texture_candidates(&HIT_EXPLOSION_CANDIDATES).await;
         let hit_add_material = load_additive_material();
         println!("[boot] noteskin texture load: {} ms", t1.elapsed().as_millis());
+        log_file::write(format!("[boot] noteskin texture load: {} ms", t1.elapsed().as_millis()));
         let t2 = Instant::now();
         let noteskin_cfg = load_noteskin_config();
         println!("[boot] noteskin config load: {} ms", t2.elapsed().as_millis());
+        log_file::write(format!("[boot] noteskin config load: {} ms", t2.elapsed().as_millis()));
         let t3 = Instant::now();
         let (audio_stream, audio_handle, sink, audio_path) =
             (None, None, None, chart.music.clone());
@@ -293,6 +298,8 @@ impl Game {
         let ui_font = load_ui_font().await;
         println!("[boot] tap sfx decode: {} ms", t3.elapsed().as_millis());
         println!("[boot] Game::new total: {} ms", t0.elapsed().as_millis());
+        log_file::write(format!("[boot] tap sfx decode: {} ms", t3.elapsed().as_millis()));
+        log_file::write(format!("[boot] Game::new total: {} ms", t0.elapsed().as_millis()));
         Self {
             states: vec![false; chart.notes.len()],
             chart,
@@ -706,14 +713,17 @@ impl Game {
             return;
         }
         let t = Instant::now();
+        log_file::write("audio init start");
         let Ok((stream, handle)) = OutputStream::try_default() else {
             println!("Audio: no default output device");
+            log_file::write("audio init failed: no default output device");
             return;
         };
         self.audio_stream = Some(stream);
         self.audio_handle = Some(handle);
         self.audio_path = self.chart.music.clone();
         println!("[boot] audio device init: {} ms", t.elapsed().as_millis());
+        log_file::write(format!("[boot] audio device init: {} ms", t.elapsed().as_millis()));
     }
 
     fn adjust_bgm_volume(&mut self, delta: f32) {
