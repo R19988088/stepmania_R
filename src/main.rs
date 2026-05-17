@@ -74,11 +74,14 @@ fn app_storage_root() -> PathBuf {
 }
 
 fn songs_dir_candidates(root: &Path) -> Vec<PathBuf> {
-    let mut out = vec![root.join("Songs"), root.join("songs"), root.join("sonngs")];
+    let mut out = vec![
+        root.to_path_buf(),
+        root.join("Songs"),
+        root.join("songs"),
+        root.join("sonngs"),
+    ];
     out.retain(|p| p.is_dir());
-    if out.is_empty() {
-        out.push(root.join("Songs"));
-    }
+    out.dedup();
     out
 }
 
@@ -104,7 +107,7 @@ fn default_android_folder_candidates() -> Vec<PathBuf> {
 fn load_saved_song_folder(path: &Path) -> Option<PathBuf> {
     let raw = fs::read_to_string(path).ok()?;
     let folder = PathBuf::from(raw.trim());
-    if folder.is_dir() {
+    if folder.is_dir() && !discover_song_entries_multi(&songs_dir_candidates(&folder)).is_empty() {
         Some(folder)
     } else {
         None
@@ -121,7 +124,7 @@ fn save_song_folder(path: &Path, folder: &Path) {
 
 #[cfg(target_os = "android")]
 fn folder_contains_charts(folder: &Path) -> bool {
-    discover_song_entries(folder).is_empty() == false
+    discover_song_entries_multi(&songs_dir_candidates(folder)).is_empty() == false
 }
 
 #[cfg(target_os = "android")]
@@ -331,7 +334,9 @@ fn discover_song_entries(root: &Path) -> Vec<SongEntry> {
         return out;
     };
     let mut dirs: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    dirs.push(root.to_path_buf());
     dirs.sort();
+    dirs.dedup();
     for dir in dirs {
         let Ok(fr) = fs::read_dir(&dir) else {
             continue;
@@ -390,6 +395,48 @@ fn discover_song_entries_multi(roots: &[PathBuf]) -> Vec<SongEntry> {
         out.extend(discover_song_entries(r));
     }
     out
+}
+
+async fn no_songs_screen(roots: &[PathBuf], ui_font: Option<&Font>) {
+    loop {
+        clear_background(Color::from_rgba(12, 14, 26, 255));
+        draw_text_ui(
+            ui_font,
+            "No songs found",
+            36.0,
+            72.0,
+            48.0,
+            Color::from_rgba(245, 90, 90, 255),
+        );
+        draw_text_ui(
+            ui_font,
+            "The app is still running. Pick a folder that contains Songs, or a song folder with .sm/.ssc/.dwi files.",
+            36.0,
+            118.0,
+            24.0,
+            WHITE,
+        );
+        draw_text_ui(ui_font, "Scanned paths:", 36.0, 174.0, 28.0, LIGHTGRAY);
+        for (i, root) in roots.iter().take(10).enumerate() {
+            draw_text_ui(
+                ui_font,
+                &root.to_string_lossy(),
+                48.0,
+                216.0 + i as f32 * 34.0,
+                22.0,
+                GRAY,
+            );
+        }
+        draw_text_ui(
+            ui_font,
+            "Close the app and reopen to choose again.",
+            36.0,
+            screen_height() - 52.0,
+            24.0,
+            Color::from_rgba(255, 205, 90, 255),
+        );
+        next_frame().await;
+    }
 }
 
 fn load_last_selection(path: &Path) -> String {
@@ -849,8 +896,8 @@ async fn main() {
     ));
     println!("[boot] scan songs: {} ms | count={}", t_find.elapsed().as_millis(), entries.len());
     if entries.is_empty() {
-        log_file::write("no songs found, exiting");
-        return;
+        log_file::write("no songs found, showing diagnostics screen");
+        no_songs_screen(&songs_roots, ui_font.as_ref()).await;
     }
     let last_selection_path = data_file_path(&app_root, LAST_SELECTION_FILE);
     let last_difficulty_path = data_file_path(&app_root, LAST_DIFFICULTY_FILE);
