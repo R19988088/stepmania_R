@@ -66,6 +66,8 @@ jobs:
           done
 
       - name: Build APK
+        id: build_apk
+        continue-on-error: true
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -79,7 +81,7 @@ jobs:
           cargo quad-apk build --release --target aarch64-linux-android 2>&1 | tee target/ci-logs/android-build.log
 
       - name: Show build failure details
-        if: failure()
+        if: steps.build_apk.outcome == 'failure'
         run: |
           LOG=target/ci-logs/android-build.log
           SUMMARY=target/ci-logs/android-build-summary.log
@@ -106,8 +108,10 @@ jobs:
             safe=${safe//$'\n'/'%0A'}
             echo "::error title=Android APK build::$safe"
           done < "$SUMMARY"
+          exit 1
 
       - name: Upload APK
+        if: steps.build_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: android-apk

@@ -69,12 +69,11 @@ $env:ANDROID_SDK_ROOT = $quadSdk
 
 $quadBuildTools30 = Join-Path $env:ANDROID_HOME "build-tools\30.0.3"
 $dxExe = Join-Path $quadBuildTools30 "dx.exe"
-if (-not (Test-Path -LiteralPath $dxExe)) {
-    $wrapperRs = Join-Path $env:TEMP "dx-wrapper.rs"
-    if (Test-Path -LiteralPath $dxExe) {
-        Remove-Item -LiteralPath $dxExe -Force
-    }
-    @'
+if (Test-Path -LiteralPath $dxExe) {
+    Remove-Item -LiteralPath $dxExe -Force
+}
+$wrapperRs = Join-Path $env:TEMP "dx-wrapper.rs"
+@'
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -83,7 +82,7 @@ use std::process::{Command, exit};
 fn main() {
     let exe = env::current_exe().expect("current exe");
     let dir = exe.parent().expect("dx parent");
-    let script = dir.join("d8.bat");
+    let d8_jar = dir.join("lib").join("d8.jar");
     let mut output = PathBuf::from("classes.dex");
     let mut inputs = Vec::new();
     let mut min_api = None::<String>;
@@ -118,16 +117,16 @@ fn main() {
     } else {
         parent
     };
-    let status = Command::new("cmd.exe")
-        .arg("/c")
-        .arg("call")
-        .arg(script)
+    let status = Command::new("java")
+        .arg("-cp")
+        .arg(d8_jar)
+        .arg("com.android.tools.r8.D8")
         .arg("--output")
         .arg(out_dir)
         .args(min_api.iter().flat_map(|v| ["--min-api".to_string(), v.clone()]))
         .args(inputs)
         .status()
-        .expect("run d8.bat");
+        .expect("run d8");
     exit(status.code().unwrap_or(1));
 }
 
@@ -144,8 +143,7 @@ fn collect_class_files(dir: &Path, out: &mut Vec<std::ffi::OsString>) {
     }
 }
 '@ | Set-Content -LiteralPath $wrapperRs -Encoding ASCII
-    rustc $wrapperRs -o $dxExe
-}
+rustc $wrapperRs -o $dxExe
 
 $ndkBin = Join-Path $env:ANDROID_NDK_HOME "toolchains\llvm\prebuilt\windows-x86_64\bin"
 $toolAliases = @{
@@ -225,10 +223,16 @@ if ($env:RUSTFLAGS) {
     }
 }
 
-$mode = if ($Release) { "--release" } else { "" }
+$buildArgs = @("quad-apk", "build", "--target", "aarch64-linux-android")
+if ($Release) {
+    $buildArgs += "--release"
+}
 
 Write-Host "Building Android APK..."
-cargo quad-apk build $mode --target aarch64-linux-android
+cargo @buildArgs
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
 
 Write-Host "Done."
 Write-Host "APK output: $env:CARGO_TARGET_DIR\android-artifacts"
