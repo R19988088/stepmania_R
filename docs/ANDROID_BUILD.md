@@ -40,5 +40,5 @@ android-apk
 
 - GPU-first rendering.
 - Android first target: `arm64-v8a`.
-- Android compile SDK: 30. Target SDK: 28.
+- Android compile SDK: 30. Target SDK: 22, so sideload builds get legacy external-storage permission behavior for visible debug logs.
 - Desktop-class minimum GPU direction: GTX 1080.

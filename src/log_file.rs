@@ -19,6 +19,7 @@ pub fn paths() -> Vec<PathBuf> {
 
 pub fn write(message: impl AsRef<str>) {
     let line = format!("[{}] {}", timestamp_ms(), message.as_ref());
+    write_android_log(&line);
     for path in log_paths() {
         prepare_log_file(&path, false);
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
@@ -69,3 +70,29 @@ fn install_panic_hook() {
         write(format!("panic: {info}"));
     }));
 }
+
+#[cfg(target_os = "android")]
+fn write_android_log(line: &str) {
+    use std::ffi::CString;
+    use std::os::raw::{c_char, c_int};
+
+    const ANDROID_LOG_ERROR: c_int = 6;
+
+    #[link(name = "log")]
+    extern "C" {
+        fn __android_log_write(prio: c_int, tag: *const c_char, text: *const c_char) -> c_int;
+    }
+
+    let Ok(tag) = CString::new("StepManiaR") else {
+        return;
+    };
+    let Ok(text) = CString::new(line) else {
+        return;
+    };
+    unsafe {
+        let _ = __android_log_write(ANDROID_LOG_ERROR, tag.as_ptr(), text.as_ptr());
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn write_android_log(_line: &str) {}
